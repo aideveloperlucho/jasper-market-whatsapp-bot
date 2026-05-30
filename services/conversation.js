@@ -93,7 +93,7 @@ module.exports = class Conversation {
 
   static async handleMessage(senderPhoneNumberId, rawMessage) {
     const message = new Message(rawMessage);
-
+ 
     switch (message.type) {
       case constants.REPLY_INTERACTIVE_MEDIA_ID:
         let interactiveMediaResponse = await sendInteractiveMediaMessage(
@@ -135,6 +135,7 @@ module.exports = class Conversation {
 
     // Only handle delivered and read statuses
     if (!(status.status === 'delivered' || status.status === 'read')) {
+      console.error('LAGL* Opps, something went wrong with the status', rawStatus);
       return;
     }
 

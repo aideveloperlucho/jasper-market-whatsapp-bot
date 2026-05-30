@@ -5,13 +5,35 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-APPTOKEN="<APP_TOKEN>"
-APPID="<APP_ID>"
-WABAID="<WABA_ID>"
-APIVERSION="<CLOUD_API_VERSION>"
+APPTOKEN="EAAVhXjCVePYBRqrZCW5cVhkFRgHUnDgqoIxaEc665OjGnjz8ZA0ZB8MyHCL1ZC4pgUaEcBpXabwu2sOJ2ZC91BYFZCAfezpN2ZCmPrs1bGJeKiZAJtoNtD0q4QXhjBNZCSXd7bZAI9C58NtB9UfiFiVrxbKWqdFZAHNZAp3xSZCQQiv7MWXnYDuZBNUmOQtMA5DOHJ4R8ozgZDZD"
+APPID="1514432053475574"
+WABAID="849031811609441"
+APIVERSION="v23.0"
+
+# winget installs jq; Git Bash often does not see the updated user PATH
+if ! command -v jq >/dev/null 2>&1; then
+    _localappdata="${LOCALAPPDATA:-$HOME/AppData/Local}"
+    _winget_links="${_localappdata}/Microsoft/WinGet/Links"
+    if [[ -d "$_winget_links" ]]; then
+        PATH="${_winget_links}:${PATH}"
+    fi
+    for _jq_pkg in "${_localappdata}"/Microsoft/WinGet/Packages/jqlang.jq_*/; do
+        if [[ -x "${_jq_pkg}jq.exe" ]]; then
+            PATH="${_jq_pkg}:${PATH}"
+            break
+        fi
+    done
+    export PATH
+    unset _localappdata _winget_links _jq_pkg
+fi
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required. Install with: winget install jqlang.jq"
+    echo "Then restart Git Bash, or add WinGet's jq folder to PATH."
+    exit 1
+fi
 
 echo "Downloading image assets from Meta"
-mkdir public
+mkdir -p public
 curl -o public/groceries.jpg https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e\&ab_page=AssetManagerID\&ab_entry=1530053877871776
 curl -o public/salad_bowl.jpg https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e\&ab_page=AssetManagerID\&ab_entry=3255815791260974
 curl -o public/sheet_pan_dinner.jpg https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e\&ab_page=AssetManagerID\&ab_entry=1389202275965231
@@ -21,7 +43,7 @@ declare -A handles
 for image in "groceries" "salad_bowl" "sheet_pan_dinner" "strawberries"; do
     echo "Uploading $image"
 
-    file_length=$(stat -f%z "public/$image.jpg")
+    file_length=$(wc -c < "public/$image.jpg" | tr -d ' ')
 
     response=$(curl -s -X POST "https://graph.facebook.com/${APIVERSION}/${APPID}/uploads?file_name=${image}.jpg&file_length=${file_length}&file_type=image/jpg&access_token=${APPTOKEN}")
 
