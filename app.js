@@ -61,8 +61,8 @@ app.post('/webhook', (req, res) => {
 
           if (value.messages) {
             value.messages.forEach(rawMessage => {
-              // Respond to message
-              Conversation.handleMessage(senderPhoneNumberId, rawMessage);
+              Conversation.handleMessage(senderPhoneNumberId, rawMessage)
+                .catch(error => console.error("Unhandled message error:", error));
             });
           }
         }

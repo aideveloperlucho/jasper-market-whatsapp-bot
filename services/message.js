@@ -13,7 +13,14 @@ module.exports = class Message {
 
     let type = rawMessage.type;
     if (type === 'interactive') {
-      this.type = rawMessage.interactive.button_reply.id;
+      const interactive = rawMessage.interactive;
+      if (interactive.button_reply) {
+        this.type = interactive.button_reply.id;
+      } else if (interactive.list_reply) {
+        this.type = interactive.list_reply.id;
+      } else {
+        this.type = 'unknown';
+      }
     } else {
       this.type = 'unknown'
     }

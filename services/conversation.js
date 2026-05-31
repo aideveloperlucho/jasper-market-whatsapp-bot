@@ -7,6 +7,8 @@
 
 "use strict";
 
+const path = require("path");
+
 const constants = require("./constants");
 const config = require("./config");
 const GraphApi = require('./graph-api');
@@ -15,30 +17,37 @@ const Status = require('./status');
 const Cache = require('./redis');
 
 
+const DEMO_REPLY_CTAS = [
+  {
+    id: constants.REPLY_INTERACTIVE_MEDIA_ID,
+    title: constants.REPLY_INTERACTIVE_WITH_MEDIA_CTA,
+  },
+  {
+    id: constants.REPLY_MEDIA_CAROUSEL_ID,
+    title: constants.REPLY_MEDIA_CARD_CAROUSEL_CTA,
+  },
+  {
+    id: constants.REPLY_OFFER_ID,
+    title: constants.REPLY_OFFER_CTA,
+  },
+];
+
+function getDemoReplyCTAs() {
+  return DEMO_REPLY_CTAS.filter((cta) => cta.id && cta.title);
+}
+
 function sendTryOutDemoMessage(messageId, senderPhoneNumberId, recipientPhoneNumber, messageBody) {
   return GraphApi.messageWithInteractiveReply(
     messageId,
     senderPhoneNumberId,
     recipientPhoneNumber,
     messageBody,
-    [
-      {
-        id: constants.REPLY_INTERACTIVE_MEDIA_ID,
-        title: constants.REPLY_INTERACTIVE_WITH_MEDIA_CTA,
-      },
-      {
-        id: constants.REPLY_MEDIA_CAROUSEL_ID,
-        title: constants.REPLY_MEDIA_CARD_CAROUSEL_CTA,
-      },
-      {
-        id: constants.REPLY_OFFER_ID,
-        title: constants.REPLY_OFFER_CTA,
-      }
-    ]
+    getDemoReplyCTAs()
   );
 }
 
 function sendInteractiveMediaMessage(messageId, senderPhoneNumberId, recipientPhoneNumber) {
+  const publicDir = path.join(__dirname, "..", "public");
   return GraphApi.messageWithUtilityTemplate(
     messageId,
     senderPhoneNumberId,
@@ -46,12 +55,13 @@ function sendInteractiveMediaMessage(messageId, senderPhoneNumberId, recipientPh
     {
       templateName: "grocery_delivery_utility",
       locale: "en_US",
-      imageLink: "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e&ab_page=AssetManagerID&ab_entry=1530053877871776",
+      imagePath: path.join(publicDir, "groceries.jpg"),
     }
   );
 }
 
 function sendLimitedTimeOfferMessage(messageId, senderPhoneNumberId, recipientPhoneNumber) {
+  const publicDir = path.join(__dirname, "..", "public");
   return GraphApi.messageWithLimitedTimeOfferTemplate(
     messageId,
     senderPhoneNumberId,
@@ -59,13 +69,14 @@ function sendLimitedTimeOfferMessage(messageId, senderPhoneNumberId, recipientPh
     {
       templateName: "strawberries_limited_offer",
       locale: "en_US",
-      imageLink: "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e&ab_page=AssetManagerID&ab_entry=1393969325614091",
+      imagePath: path.join(publicDir, "strawberries.jpg"),
       offerCode: "BERRIES20",
     }
   );
 }
 
 function sendMediaCarouselMessage(messageId, senderPhoneNumberId, recipientPhoneNumber) {
+  const publicDir = path.join(__dirname, "..", "public");
   return GraphApi.messageWithMediaCardCarousel(
     messageId,
     senderPhoneNumberId,
@@ -73,9 +84,9 @@ function sendMediaCarouselMessage(messageId, senderPhoneNumberId, recipientPhone
     {
       templateName: "recipe_media_carousel",
       locale: "en_US",
-      imageLinks: [
-        "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e&ab_page=AssetManagerID&ab_entry=1389202275965231",
-        "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/id/?ab_b=e&ab_page=AssetManagerID&ab_entry=3255815791260974"
+      imagePaths: [
+        path.join(publicDir, "sheet_pan_dinner.jpg"),
+        path.join(publicDir, "salad_bowl.jpg"),
       ]
     }
   );
@@ -93,40 +104,47 @@ module.exports = class Conversation {
 
   static async handleMessage(senderPhoneNumberId, rawMessage) {
     const message = new Message(rawMessage);
- 
-    switch (message.type) {
-      case constants.REPLY_INTERACTIVE_MEDIA_ID:
-        let interactiveMediaResponse = await sendInteractiveMediaMessage(
-          message.id,
-          senderPhoneNumberId,
-          message.senderPhoneNumber
-        );
-        await markMessageForFollowUp(interactiveMediaResponse.messages[0].id);
-        break;
-      case constants.REPLY_MEDIA_CAROUSEL_ID:
-        let mediaCarouselResponse = await sendMediaCarouselMessage(
-          message.id,
-          senderPhoneNumberId,
-          message.senderPhoneNumber
-        );
-        await markMessageForFollowUp(mediaCarouselResponse.messages[0].id);
-        break;
-      case constants.REPLY_OFFER_ID:
-        let ltoResponse = await sendLimitedTimeOfferMessage(
-          message.id,
-          senderPhoneNumberId,
-          message.senderPhoneNumber
-        );
-        await markMessageForFollowUp(ltoResponse.messages[0].id);
-        break;
-      default:
-        sendTryOutDemoMessage(
-          message.id,
-          senderPhoneNumberId,
-          message.senderPhoneNumber,
-          constants.APP_DEFAULT_MESSAGE
-        );
-        break;
+
+    try {
+      switch (message.type) {
+        case constants.REPLY_INTERACTIVE_MEDIA_ID: {
+          const interactiveMediaResponse = await sendInteractiveMediaMessage(
+            message.id,
+            senderPhoneNumberId,
+            message.senderPhoneNumber
+          );
+          await markMessageForFollowUp(interactiveMediaResponse.messages[0].id);
+          break;
+        }
+        case constants.REPLY_MEDIA_CAROUSEL_ID: {
+          const mediaCarouselResponse = await sendMediaCarouselMessage(
+            message.id,
+            senderPhoneNumberId,
+            message.senderPhoneNumber
+          );
+          await markMessageForFollowUp(mediaCarouselResponse.messages[0].id);
+          break;
+        }
+        case constants.REPLY_OFFER_ID: {
+          const ltoResponse = await sendLimitedTimeOfferMessage(
+            message.id,
+            senderPhoneNumberId,
+            message.senderPhoneNumber
+          );
+          await markMessageForFollowUp(ltoResponse.messages[0].id);
+          break;
+        }
+        default:
+          await sendTryOutDemoMessage(
+            message.id,
+            senderPhoneNumberId,
+            message.senderPhoneNumber,
+            constants.APP_DEFAULT_MESSAGE
+          );
+          break;
+      }
+    } catch (error) {
+      console.error("Error handling message:", error);
     }
   }
 

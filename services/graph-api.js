@@ -7,22 +7,53 @@
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const { FacebookAdsApi } = require('facebook-nodejs-business-sdk');
 const config = require("./config");
 
-const api = new FacebookAdsApi(config.accessToken);
+const GRAPH_API_VERSION = "v23.0";
+
+FacebookAdsApi.init(config.accessToken);
+const api = FacebookAdsApi.getDefaultApi();
 
 module.exports = class GraphApi {
+  static async #uploadMedia(senderPhoneNumberId, filePath) {
+    const fileBuffer = fs.readFileSync(filePath);
+    const formData = new FormData();
+    formData.append("messaging_product", "whatsapp");
+    formData.append("type", "image/jpeg");
+    formData.append(
+      "file",
+      new Blob([fileBuffer], { type: "image/jpeg" }),
+      path.basename(filePath)
+    );
+
+    const response = await fetch(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${senderPhoneNumberId}/media`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${config.accessToken}` },
+        body: formData,
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Media upload failed: ${JSON.stringify(data)}`);
+    }
+    return data.id;
+  }
+
   static async #makeApiCall(messageId, senderPhoneNumberId, requestBody) {
     try {
-      // Mark as read and send typing indicator
       if (messageId) {
         const typingBody = {
           messaging_product: "whatsapp",
           status: "read",
           message_id: messageId,
-          "typing_indicator": {
-            "type": "text"
+          typing_indicator: {
+            type: "text"
           }
         };
 
@@ -32,7 +63,6 @@ module.exports = class GraphApi {
           typingBody
         );
       }
-
 
       const response = await api.call(
         'POST',
@@ -73,25 +103,27 @@ module.exports = class GraphApi {
   }
 
   static async messageWithUtilityTemplate(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-    const { templateName, locale, imageLink } = options;
+    const { templateName, locale, imagePath } = options;
+    const mediaId = await this.#uploadMedia(senderPhoneNumberId, imagePath);
+
     const requestBody = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: recipientPhoneNumber,
       type: "template",
       template: {
-        "name": templateName,
-        "language": {
-          "code": locale
+        name: templateName,
+        language: {
+          code: locale
         },
-        "components": [
+        components: [
           {
-            "type": "header",
-            "parameters": [
+            type: "header",
+            parameters: [
               {
-                "type": "image",
-                "image": {
-                  "link": imageLink
+                type: "image",
+                image: {
+                  id: mediaId
                 }
               }
             ]
@@ -104,53 +136,53 @@ module.exports = class GraphApi {
   }
 
   static async messageWithLimitedTimeOfferTemplate(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-
-    const { templateName, locale, imageLink, offerCode } = options;
+    const { templateName, locale, imagePath, offerCode } = options;
+    const mediaId = await this.#uploadMedia(senderPhoneNumberId, imagePath);
 
     const currentTime = new Date();
     const futureTime = new Date(currentTime.getTime() + (48 * 60 * 60 * 1000));
 
     const requestBody = {
-      "messaging_product": "whatsapp",
-      "recipient_type": "individual",
-      "to": recipientPhoneNumber,
-      "type": "template",
-      "template": {
-        "name": templateName,
-        "language": {
-          "code": locale
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipientPhoneNumber,
+      type: "template",
+      template: {
+        name: templateName,
+        language: {
+          code: locale
         },
-        "components": [
+        components: [
           {
-            "type": "header",
-            "parameters": [
+            type: "header",
+            parameters: [
               {
-                "type": "image",
-                "image": {
-                  "link": imageLink
+                type: "image",
+                image: {
+                  id: mediaId
                 }
               }
             ]
           },
           {
-            "type": "limited_time_offer",
-            "parameters": [
+            type: "limited_time_offer",
+            parameters: [
               {
-                "type": "limited_time_offer",
-                "limited_time_offer": {
-                  "expiration_time_ms": futureTime.getTime()
+                type: "limited_time_offer",
+                limited_time_offer: {
+                  expiration_time_ms: futureTime.getTime()
                 }
               }
             ]
           },
           {
-            "type": "button",
-            "sub_type": "copy_code",
-            "index": 0,
-            "parameters": [
+            type: "button",
+            sub_type: "copy_code",
+            index: 0,
+            parameters: [
               {
-                "type": "coupon_code",
-                "coupon_code": offerCode
+                type: "coupon_code",
+                coupon_code: offerCode
               }
             ]
           }
@@ -162,30 +194,34 @@ module.exports = class GraphApi {
   }
 
   static async messageWithMediaCardCarousel(messageId, senderPhoneNumberId, recipientPhoneNumber, options) {
-    const { templateName, locale, imageLinks } = options;
+    const { templateName, locale, imagePaths } = options;
+    const mediaIds = await Promise.all(
+      imagePaths.map((filePath) => this.#uploadMedia(senderPhoneNumberId, filePath))
+    );
+
     const requestBody = {
-      "messaging_product": "whatsapp",
-      "recipient_type": "individual",
-      "to": recipientPhoneNumber,
-      "type": "template",
-      "template": {
-        "name": templateName,
-        "language": {
-          "code": locale
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipientPhoneNumber,
+      type: "template",
+      template: {
+        name: templateName,
+        language: {
+          code: locale
         },
-        "components": [
+        components: [
           {
-            "type": "carousel",
-            "cards": imageLinks.map((imageLink, idx) => ({
-              "card_index": idx,
-              "components": [
+            type: "carousel",
+            cards: mediaIds.map((mediaId, idx) => ({
+              card_index: idx,
+              components: [
                 {
-                  "type": "header",
-                  "parameters": [
+                  type: "header",
+                  parameters: [
                     {
-                      "type": "image",
-                      "image": {
-                        "link": imageLink
+                      type: "image",
+                      image: {
+                        id: mediaId
                       }
                     }
                   ]
