@@ -153,7 +153,6 @@ module.exports = class Conversation {
 
     // Only handle delivered and read statuses
     if (!(status.status === 'delivered' || status.status === 'read')) {
-      console.error('LAGL* Opps, something went wrong with the status', rawStatus);
       return;
     }
 
